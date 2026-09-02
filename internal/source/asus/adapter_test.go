@@ -101,3 +101,26 @@ func TestParsePingConfirmsNonReachable(t *testing.T) {
 		t.Errorf("confidence want %d got %d", confPing, obs[0].Confidence)
 	}
 }
+
+// TestParseLeaseNonEpochExpiry 回归：ASUS RT-AC54U 的 dnsmasq.leases 写入的 expires
+// 是非标准的极小值（如 360，绝非 2026 年的绝对时间戳）。旧代码据此判过期并丢弃，
+// 导致静态 IP 设备只剩 MAC、没有标题。修复后此类租约仍应被解析、保留主机名。
+func TestParseLeaseNonEpochExpiry(t *testing.T) {
+	out := `###NEIGH
+192.168.1.100 dev br0 lladdr 18:FB:7B:A3:1B:E3 STALE
+###LEASES
+360 18-FB-7B-A3-1B-E3 192.168.1.100 idrac-GVC8J92 01:18:fb:7b:a3:1b:e3
+`
+	a := newTestAdapter(out)
+	obs, _ := a.parse(out)
+	if len(obs) != 1 {
+		t.Fatalf("want 1 device, got %d", len(obs))
+	}
+	o := obs[0]
+	if o.Hostname != "idrac-GVC8J92" {
+		t.Fatalf("lease hostname should be captured despite non-epoch expiry, got %q", o.Hostname)
+	}
+	if o.IP != "192.168.1.100" {
+		t.Errorf("lease IP should be captured, got %q", o.IP)
+	}
+}

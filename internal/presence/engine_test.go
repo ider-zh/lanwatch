@@ -212,3 +212,31 @@ func hasType(evs []Event, typ string) bool {
 	}
 	return false
 }
+
+// TestMergeKeepsLowerConfidenceHostname 回归：同一 MAC 的高置信度邻居表观测（无主机名）
+// 不应覆盖低置信度 DHCP 租约观测（有主机名），否则 ASUS 等静态 IP 设备只剩 MAC、没有标题。
+// 修复前 mo.hostname 只取最高置信度观测，租约主机名被丢弃。
+func TestMergeKeepsLowerConfidenceHostname(t *testing.T) {
+	e, closeFn := newTestEngine(t, 99)
+	defer closeFn()
+	ctx := context.Background()
+
+	mac := "FF:FF:FF:FF:FF:FF"
+	rr := source.NewRoundResult()
+	rr.BySource["asus-1"] = []source.Observation{
+		// 高置信度邻居表条目：在线、无主机名
+		{MAC: mac, IP: "192.168.1.50", Present: true, Confidence: 100, SourceID: "asus-1"},
+		// 低置信度 DHCP 租约：带主机名（静态 IP 设备的标题来源）
+		{MAC: mac, IP: "192.168.1.50", Present: false, Confidence: 10, Hostname: "Redmi-K50-Ultra", SourceID: "asus-1"},
+	}
+
+	e.ProcessRound(ctx, rr)
+
+	dev, err := e.st.GetDevice(source.NormalizeMAC(mac))
+	if err != nil {
+		t.Fatalf("get device: %v", err)
+	}
+	if dev.Hostname != "Redmi-K50-Ultra" {
+		t.Fatalf("expected hostname from lower-confidence lease, got %q", dev.Hostname)
+	}
+}

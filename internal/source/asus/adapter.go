@@ -353,7 +353,10 @@ func parseLeaseLine(line string, now int64, leases map[string]struct {
 	if err != nil {
 		return // 非数值首字段，跳过
 	}
-	if expires < now {
+	// 标准 dnsmasq 的 expires 是绝对 Unix 时间戳：仅当它在合理的 epoch 区间（>1e9）且已过期时才丢弃。
+	// 部分固件（如本机 ASUS RT-AC54U）写入的是非标准小数值（如 360），据此判过期会丢失全部主机名，
+	// 进而 ASUS 静态 IP 设备在列表里只剩 MAC、没有标题。
+	if expires > 1_000_000_000 && expires < now {
 		return // 租约已过期
 	}
 	mac := source.NormalizeMAC(fields[1])

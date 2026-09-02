@@ -125,19 +125,30 @@ func (e *Engine) ProcessRound(ctx context.Context, rr *source.RoundResult) {
 			if o.Present {
 				mo.present = true
 			}
+			// 连通性/定位信号（IP、置信度、来源）取置信度最高者
 			if o.Confidence > mo.conf {
 				mo.conf = o.Confidence
 				mo.ip = o.IP
-				mo.hostname = o.Hostname
-				mo.vendor = o.Vendor
-				mo.ssid = o.SSID
-				mo.linkType = string(o.LinkType)
 				mo.sourceID = o.SourceID
 			} else if mo.ip == "" {
 				// 兜底：至少带一个 IP
 				mo.ip = o.IP
-				mo.hostname = o.Hostname
 				mo.sourceID = o.SourceID
+			}
+			// 标识类字段（主机名/厂商/SSID/链路类型）取「任意非空值优先，同非空时高置信度优先」。
+			// 否则高置信度的邻居表观测（无主机名）会覆盖低置信度的 DHCP 租约观测（有主机名），
+			// 导致 ASUS 等静态 IP 设备只剩 MAC、没有标题。
+			if o.Hostname != "" && (mo.hostname == "" || o.Confidence >= mo.conf) {
+				mo.hostname = o.Hostname
+			}
+			if o.Vendor != "" && (mo.vendor == "" || o.Confidence >= mo.conf) {
+				mo.vendor = o.Vendor
+			}
+			if o.SSID != "" && (mo.ssid == "" || o.Confidence >= mo.conf) {
+				mo.ssid = o.SSID
+			}
+			if o.LinkType != "" && (mo.linkType == "" || o.Confidence >= mo.conf) {
+				mo.linkType = string(o.LinkType)
 			}
 		}
 	}
