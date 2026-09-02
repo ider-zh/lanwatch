@@ -149,17 +149,23 @@ func (e *Engine) Handle(ev presence.Event) {
 		sender, ok := e.senders[c.channelID]
 		if last, ok2 := e.cooldown[c.cooldownKey]; ok2 && now-last < int64(c.cooldownSec) {
 			e.mu.Unlock()
-			continue // 冷却期内，去重跳过
+			// 冷却跳过原本完全静默（无日志、无 notify_logs 行），线上无法定位丢通知原因，故补日志
+			e.log.Info("notify skipped: cooldown", "mac", ev.MAC, "event", ev.Type,
+				"channel", c.channelID, "rule", c.ruleName, "cooldown_sec", c.cooldownSec,
+				"elapsed", now-last)
+			continue
 		}
 		if !e.allow(c.channelID) {
 			// 限流：入队，等待窗口结束合并为摘要
 			dk := digestKey{c.channelID, ev.Type}
 			e.digests[dk] = append(e.digests[dk], data)
 			e.mu.Unlock()
+			e.log.Info("notify queued: rate limited", "mac", ev.MAC, "event", ev.Type, "channel", c.channelID)
 			continue
 		}
 		e.mu.Unlock()
 		if !ok {
+			e.log.Warn("notify skipped: no sender for channel", "mac", ev.MAC, "event", ev.Type, "channel", c.channelID)
 			continue
 		}
 		go e.dispatch(c, sender, data)
@@ -204,9 +210,19 @@ func (e *Engine) dispatch(c candidate, sender Sender, data TemplateData) {
 }
 
 func (e *Engine) toData(ev presence.Event) TemplateData {
+	// 事件只带 MAC 与采集到的主机名；用户在「设备」页设置的备注名在 devices 表里，
+	// 不查库的话模板里的 {{.Device.NameOrHost}} 永远拿不到备注名，只能回落到 MAC。
+	hostname := ev.Hostname
+	var name string
+	if dev, err := e.st.GetDevice(ev.MAC); err == nil && dev != nil {
+		name = dev.Name
+		if hostname == "" {
+			hostname = dev.Hostname
+		}
+	}
 	d := TemplateData{
 		Device: DeviceView{
-			MAC: ev.MAC, IP: ev.IP, Hostname: ev.Hostname, Vendor: ev.Vendor,
+			MAC: ev.MAC, IP: ev.IP, Hostname: hostname, Name: name, Vendor: ev.Vendor,
 			LinkType: ev.LinkType, SSID: ev.SSID,
 		},
 		Event:      EventView{Type: ev.Type, At: time.Unix(ev.At, 0)},

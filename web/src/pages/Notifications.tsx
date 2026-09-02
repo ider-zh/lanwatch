@@ -7,6 +7,12 @@ function fmt(ts: number): string {
   return new Date(ts * 1000).toLocaleString()
 }
 
+function deviceLabel(l: NotifyLog): { name: string | null; sub: string } {
+  const name = l.device_name || l.device_hostname || null
+  const mac = l.mac || '-'
+  return { name, sub: mac }
+}
+
 export default function Notifications() {
   const qc = useQueryClient()
   const [offset, setOffset] = useState(0)
@@ -42,7 +48,7 @@ export default function Notifications() {
             <tr>
               <th className="text-left px-3 py-2">时间</th>
               <th className="text-left px-3 py-2">事件</th>
-              <th className="text-left px-3 py-2">MAC</th>
+              <th className="text-left px-3 py-2">设备</th>
               <th className="text-left px-3 py-2">渠道</th>
               <th className="text-left px-3 py-2">状态</th>
               <th className="text-left px-3 py-2">重试</th>
@@ -55,7 +61,19 @@ export default function Notifications() {
               <tr key={l.id} className="border-t border-slate-800 hover:bg-slate-900/50">
                 <td className="px-3 py-2 text-slate-400 whitespace-nowrap">{fmt(l.created_at)}</td>
                 <td className="px-3 py-2 text-slate-200">{EVENT_CN[l.event] || l.event}</td>
-                <td className="px-3 py-2 font-mono text-slate-400">{l.mac || '-'}</td>
+                <td className="px-3 py-2">
+                  {(() => {
+                    const { name, sub } = deviceLabel(l)
+                    return name ? (
+                      <>
+                        <div className="text-slate-100">{name}</div>
+                        <div className="font-mono text-xs text-slate-500">{sub}</div>
+                      </>
+                    ) : (
+                      <span className="font-mono text-slate-400">{sub}</span>
+                    )
+                  })()}
+                </td>
                 <td className="px-3 py-2 text-slate-300">{l.channel_name || `#${l.channel_id}`}</td>
                 <td className="px-3 py-2">
                   <span className={`text-xs px-2 py-0.5 rounded ${l.status === 'sent' ? 'bg-emerald-900 text-emerald-300' : l.status === 'failed' ? 'bg-rose-900 text-rose-300' : 'bg-slate-700 text-slate-300'}`}>

@@ -29,9 +29,12 @@ func (e *Engine) recordTransition(mac string, now int64) {
 	if len(ds.transitions) >= threshold {
 		if !ds.flapping {
 			ds.flapping = true
+			// 仅在"进入 flapping"时设定抑制截止。
+			// 原实现每次切换都续期 flapUntil，导致持续抖动的设备被永久静默
+			// （只要切换间隔 < suppress 就再也收不到通知）。按设计抑制期应固定为 suppress。
+			ds.flapUntil = now + suppress
 			e.log.Warn("device flapping detected", "mac", mac, "transitions", len(ds.transitions))
 			e.emit(Event{Type: TypeFlapping, MAC: mac, At: now, Flapping: true})
 		}
-		ds.flapUntil = now + suppress
 	}
 }

@@ -263,17 +263,37 @@ func (s *Store) GetNotifyLog(id int64) (*NotifyLog, error) {
 	return &l, nil
 }
 
-// NotifyLogRow 列表视图行（含渠道名称）。
+// NotifyLogRow 列表视图行（含渠道名称与设备名称）。
 type NotifyLogRow struct {
 	NotifyLog
-	ChannelName string
-	ChannelType string
+	ChannelName    string
+	ChannelType    string
+	DeviceName     string // 用户在「设备」页设置的备注名，可能为空
+	DeviceHostname string // 采集到的主机名，可能为空
+}
+
+// DeviceLabel 用于列表展示：优先备注名，其次主机名，都没有则回落 MAC。
+func (r NotifyLogRow) DeviceLabel() string {
+	if r.DeviceName != "" {
+		return r.DeviceName
+	}
+	if r.DeviceHostname != "" {
+		return r.DeviceHostname
+	}
+	if r.MAC != nil {
+		return *r.MAC
+	}
+	return ""
 }
 
 // ListNotifyLogs 分页/筛选查询发送日志（按时间倒序）。
 func (s *Store) ListNotifyLogs(limit, offset int, onlyErrors bool) ([]NotifyLogRow, error) {
-	q := `SELECT n.id, n.rule_id, n.channel_id, n.mac, n.event, n.status, n.attempts, n.error, n.payload, n.created_at, n.sent_at, c.name, c.type
-		FROM notify_logs n LEFT JOIN channels c ON c.id=n.channel_id WHERE 1=1`
+	// 左连接 devices 取备注名/主机名：通知日志只存 mac，不关联就只剩一串 MAC，无法辨认是哪台设备
+	q := `SELECT n.id, n.rule_id, n.channel_id, n.mac, n.event, n.status, n.attempts, n.error, n.payload, n.created_at, n.sent_at, c.name, c.type,
+		COALESCE(d.name, ''), COALESCE(d.hostname, '')
+		FROM notify_logs n
+		LEFT JOIN channels c ON c.id=n.channel_id
+		LEFT JOIN devices d ON d.mac=n.mac WHERE 1=1`
 	args := []interface{}{}
 	if onlyErrors {
 		q += ` AND n.status='failed'`
@@ -289,8 +309,8 @@ func (s *Store) ListNotifyLogs(limit, offset int, onlyErrors bool) ([]NotifyLogR
 	for rows.Next() {
 		var l NotifyLog
 		var ruleID, sentAt sql.NullInt64
-		var mac, sendErr, chName, chType sql.NullString
-		if err := rows.Scan(&l.ID, &ruleID, &l.ChannelID, &mac, &l.Event, &l.Status, &l.Attempts, &sendErr, &l.Payload, &l.CreatedAt, &sentAt, &chName, &chType); err != nil {
+		var mac, sendErr, chName, chType, devName, devHost sql.NullString
+		if err := rows.Scan(&l.ID, &ruleID, &l.ChannelID, &mac, &l.Event, &l.Status, &l.Attempts, &sendErr, &l.Payload, &l.CreatedAt, &sentAt, &chName, &chType, &devName, &devHost); err != nil {
 			return nil, err
 		}
 		if ruleID.Valid {
@@ -306,7 +326,13 @@ func (s *Store) ListNotifyLogs(limit, offset int, onlyErrors bool) ([]NotifyLogR
 			l.SentAt = &v
 		}
 		l.Error = sendErr.String
-		out = append(out, NotifyLogRow{NotifyLog: l, ChannelName: chName.String, ChannelType: chType.String})
+		out = append(out, NotifyLogRow{
+			NotifyLog:      l,
+			ChannelName:    chName.String,
+			ChannelType:    chType.String,
+			DeviceName:     devName.String,
+			DeviceHostname: devHost.String,
+		})
 	}
 	return out, rows.Err()
 }

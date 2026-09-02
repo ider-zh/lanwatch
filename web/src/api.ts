@@ -118,6 +118,8 @@ export interface NotifyLog {
   error: string
   created_at: number
   sent_at: number | null
+  device_name?: string | null
+  device_hostname?: string | null
 }
 export interface Subscription {
   channel_id: number

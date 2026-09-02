@@ -33,12 +33,16 @@ func (a *API) handleListNotifications(w http.ResponseWriter, r *http.Request) {
 			"channel_name": row.ChannelName,
 			"channel_type": row.ChannelType,
 			"mac":          row.MAC,
-			"event":        row.Event,
-			"status":       row.Status,
-			"attempts":     row.Attempts,
-			"error":        row.Error,
-			"created_at":   row.CreatedAt,
-			"sent_at":      row.SentAt,
+			// 通知日志只存 mac，这里补上设备备注名/主机名，否则列表里只剩一串 MAC 无法辨认
+			"device_name":     row.DeviceName,
+			"device_hostname": row.DeviceHostname,
+			"device_label":    row.DeviceLabel(),
+			"event":           row.Event,
+			"status":          row.Status,
+			"attempts":        row.Attempts,
+			"error":           row.Error,
+			"created_at":      row.CreatedAt,
+			"sent_at":         row.SentAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"logs": out})

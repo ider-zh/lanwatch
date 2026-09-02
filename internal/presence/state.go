@@ -123,11 +123,13 @@ func (e *Engine) registerHit(mac string, now int64) {
 		if _, err := e.st.OpenSession(mac, now, "online"); err != nil {
 			e.log.Warn("open session", "mac", mac, "err", err)
 		}
-		wasFlapping := ds.flapping
-		e.recordTransition(mac, now)
-		if !wasFlapping {
-			e.emit(Event{Type: TypeOnline, MAC: mac, At: now})
-		}
+	// 只有真正处于抑制窗口内才算抑制。放在 recordTransition 之前判断，
+	// 保证抑制期结束后的第一次切换能正常发通知（原实现会白白吞掉一条）。
+	suppressedNow := ds.flapping && now < ds.flapUntil
+	e.recordTransition(mac, now)
+	if !suppressedNow {
+		e.emit(Event{Type: TypeOnline, MAC: mac, At: now})
+	}
 	}
 	ds.state = StOnline
 }
@@ -156,9 +158,9 @@ func (e *Engine) registerMiss(mac string, now int64) {
 		dur = &d
 		lastSeen = latest.StartAt
 	}
-	wasFlapping := ds.flapping
+	suppressedNow := ds.flapping && now < ds.flapUntil
 	e.recordTransition(mac, now)
-	if !wasFlapping {
+	if !suppressedNow {
 		e.emit(Event{
 			Type: TypeOffline, MAC: mac, At: now,
 			DurationS: dur, LastSeen: lastSeen, Flapping: ds.flapping,
