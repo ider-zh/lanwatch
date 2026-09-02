@@ -4,8 +4,9 @@
 #   - 凭据用 ${ASUS_PASSWORD} / ${TPLINK_PASSWORD} 注入
 #   - 权限 0600，属主 lanwatch
 
-listen_addr: 127.0.0.1:8080        # 内网直连改 0.0.0.0:8080（建议前置 Caddy/Nginx 终止 TLS）
-db_path: /var/lib/lanwatch/lanwatch.db
+listen_addr: 0.0.0.0:9123          # 容器/主机内部非常用端口；外部由 Traefik(443) 经次级域名反代
+public_url: https://lanwatch.220.toop.ai   # 通知/确认链接前缀，必须设为对外可达地址
+db_path: /data/lanwatch.db          # docker-compose 中挂载 ./data:/data
 secret: ${LANWATCH_SECRET}
 
 collect:

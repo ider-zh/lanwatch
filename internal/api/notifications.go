@@ -109,6 +109,11 @@ func (a *API) buildNotifyData(mac, event string) notify.TemplateData {
 
 // baseURL 用于模板里跳转前端的链接前缀。
 func (a *API) baseURL() string {
+	// 优先使用对外公开地址（经 Traefik 反代时为 https://<sub>.<domain>），
+	// 否则回退到 listen_addr（多为内网地址，确认链接不可用）。
+	if u := strings.TrimSpace(a.cfg.PublicURL); u != "" && !strings.Contains(u, "${") {
+		return u
+	}
 	addr := a.cfg.ListenAddr
 	if addr == "" {
 		return ""

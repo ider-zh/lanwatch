@@ -1,0 +1,43 @@
+# lanwatch —— 经 Traefik 暴露为 https://lanwatch.220.toop.ai
+#
+# 前置条件（已在 /home/ider/docker_job/traefik-compose 中运行）：
+#   - 外部网络 `web` 已存在（docker network create web 或由 traefik 栈创建）
+#   - Traefik v3 监听 443，entrypoint=websecure，certresolver=cloudflare（Cloudflare DNS-01）
+#   - 域名 lanwatch.220.toop.ai 的 DNS 记录（A/AAAA 或 *.220.toop.ai 通配）指向本机公网 IP
+#
+# 用法：
+#   cp .env.example .env   # 填入真实凭据（.env 已被 .gitignore 忽略）
+#   docker compose up -d --build
+#
+# 数据：挂载 ./data (项目内，持久化) 到容器 /data；配置 deploy/lanwatch.yaml 中 db_path: /data/lanwatch.db
+# 凭据：一律通过 env_file: .env 注入，config.yaml 只保留 ${...} 占位符
+
+services:
+  lanwatch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lanwatch:local
+    container_name: lanwatch
+    restart: unless-stopped
+    networks:
+      - web
+    env_file:
+      - .env
+    volumes:
+      - ./deploy/lanwatch.yaml:/etc/lanwatch/config.yaml:ro
+      - ./data:/data
+    expose:
+      - "9123"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.lanwatch.rule=Host(`lanwatch.220.toop.ai`)"
+      - "traefik.http.routers.lanwatch.entrypoints=websecure"
+      - "traefik.http.routers.lanwatch.tls=true"
+      - "traefik.http.routers.lanwatch.tls.certresolver=cloudflare"
+      - "traefik.http.services.lanwatch.loadbalancer.server.port=9123"
+
+networks:
+  web:
+    external: true
+    name: web

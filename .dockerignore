@@ -1,0 +1,17 @@
+# 构建上下文排除项：保持镜像干净、且不把本地数据/密钥/产物带进去
+.git
+.gitignore
+data/
+.env
+.env.*
+*.env
+*.db
+*.db-shm
+*.db-wal
+initial_admin.txt
+web/node_modules/
+web/dist/
+cmd/lanwatch/lanwatch
+lanwatch
+/var/
+__pycache__/

@@ -1,0 +1,58 @@
+# lanwatch 生产配置（由 docker-compose 挂载为 /etc/lanwatch/config.yaml）
+#
+# 安全约定：本文件不含任何真实凭据，一律用 ${...} 占位符，
+# 真实值通过 docker-compose 的 env_file: .env 注入。
+# 修改后重启：docker compose restart lanwatch
+
+listen_addr: 0.0.0.0:9123          # 容器内部非常用端口；外部由 Traefik(443) 经次级域名反代
+public_url: https://lanwatch.220.toop.ai   # 通知/确认链接前缀，必须设为对外可达地址
+db_path: /data/lanwatch.db          # 容器内路径，对应挂载 ./data:/data（项目内持久化）
+secret: ${LANWATCH_SECRET}          # AES-GCM 凭据加密密钥源
+
+collect:
+  interval: 60s
+  discover_sweep_every: 10
+  round_timeout: 10s
+  sweep_timeout: 15s
+  ssh_keepalive: 30s
+  ssh_timeout: 10s
+  http_timeout: 8s
+
+presence:
+  miss_threshold: 2
+  hit_threshold: 1
+  session_merge_gap: 120s
+  min_offline_notify_sec: 120
+  confirm_ping: true
+  flap:
+    window: 10m
+    threshold: 4
+    suppress: 30m
+
+retention:
+  probe_samples_days: 7
+  sessions_days: 180
+  notify_logs_days: 30
+  prune_at: "03:10"
+
+notify:
+  rate_limit_per_channel: 15
+  retry: [30s, 2m, 10m]
+  cooldown_sec: 300
+
+sources:
+  - id: asus-1
+    kind: asus-ssh
+    host: 192.168.1.1:22
+    username: admin
+    password: ${ASUS_PASSWORD}
+    bridge: br0
+    subnets: ["192.168.1.0/24"]
+    enabled: true
+
+  - id: tplink-1
+    kind: tplink-http
+    base_url: http://192.168.1.3:8888
+    password: ${TPLINK_PASSWORD}
+    subnets: ["192.168.99.0/24"]
+    enabled: true

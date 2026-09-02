@@ -38,6 +38,10 @@ type Config struct {
 	LogLevel   string `yaml:"log_level"`
 	LogFormat  string `yaml:"log_format"`
 
+	// PublicURL 对外可访问的基础地址（含协议与域名），用于通知邮件/确认链接里跳转前端的链接前缀。
+	// 不设置时回退为 listen_addr；经 Traefik 反代时务必设置，否则确认链接会是内网地址。
+	PublicURL string `yaml:"public_url"`
+
 	Collect   CollectConfig   `yaml:"collect"`
 	Presence  PresenceConfig  `yaml:"presence"`
 	Retention RetentionConfig `yaml:"retention"`

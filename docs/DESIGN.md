@@ -633,6 +633,7 @@ GET    /api/health                         无鉴权，进程存活
 
 ```yaml
 listen_addr: 127.0.0.1:8080
+public_url: https://lanwatch.220.toop.ai   # 经反代时必填，用于通知/确认链接前缀
 db_path: /var/lib/lanwatch/lanwatch.db
 secret: ${LANWATCH_SECRET}          # 渠道凭据加密密钥，env 注入
 
@@ -701,6 +702,47 @@ WantedBy=multi-user.target
 
 **注意**：抓取模式**不需要** `CAP_NET_RAW` / `NET_ADMIN`，因此可完整使用 `ProtectSystem=strict` 等加固项。
 数据库备份：`sqlite3 /var/lib/lanwatch/lanwatch.db ".backup /var/backups/lanwatch-$(date +%F).db"`，每日 cron。
+
+### 11.3 Docker + Traefik 部署（推荐：非常用端口 + 次级域名）
+
+目标：应用本身只监听**非常用内部端口**（容器 `9123`），对外统一由本机 Traefik v3 经 **HTTPS 次级域名** `lanwatch.220.toop.ai`（entrypoint `websecure`/443，Cloudflare DNS-01 证书）反代，数据库持久化在项目内 `./data`。
+
+**前置（复用 `/home/ider/docker_job/traefik-compose` 既有栈）**
+- 外部网络 `web` 已存在（`docker network create web` 或由 traefik 栈创建）。
+- Traefik 已配置 `entrypoints.websecure` + `certificatesResolvers.cloudflare`（DNS-01），`providers.docker.network=web`、`exposedByDefault=false`。
+- 域名 `lanwatch.220.toop.ai`（或 `*.220.toop.ai` 通配）DNS 记录指向本机公网 IP。
+
+**文件**
+- `Dockerfile`：多阶段（node 构建 `web/dist` → golang 构建二进制 → alpine 运行期），`//go:embed all:dist` 已内嵌前端。
+- `docker-compose.yml`：服务 `lanwatch` 挂 `web` 外部网络，仅用 Traefik label 暴露，无对外 `ports` 映射；`env_file: .env` 注入凭据；卷 `./data:/data` 持久化。
+- `deploy/lanwatch.yaml`：生产配置，`listen_addr: 0.0.0.0:9123`、`public_url: https://lanwatch.220.toop.ai`、`db_path: /data/lanwatch.db`，所有密码以 `${...}` 占位符出现（真实值在 `.env`，已被 `.gitignore` 忽略）。
+
+**关键 Traefik label**
+```yaml
+- "traefik.enable=true"
+- "traefik.http.routers.lanwatch.rule=Host(`lanwatch.220.toop.ai`)"
+- "traefik.http.routers.lanwatch.entrypoints=websecure"
+- "traefik.http.routers.lanwatch.tls.certresolver=cloudflare"
+- "traefik.http.services.lanwatch.loadbalancer.server.port=9123"
+```
+
+**运行**
+```bash
+cp .env.example .env          # 填入 LANWATCH_SECRET / ASUS_PASSWORD / TPLINK_PASSWORD / LANWATCH_ADMIN_PASSWORD
+
+# 本机无法访问 Docker Hub（golang/node 基础镜像拉不下来），故先在宿主机预构建
+# 1) 前端产物（需 web/node_modules 已安装）
+cd web && npm run build && cd ..
+# 2) Go 静态二进制（含内嵌 web/dist，CGO 关掉以便 alpine 运行）
+CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o build/lanwatch ./cmd/lanwatch
+
+# 3) 打包并启动（Dockerfile 仅把 build/lanwatch 拷入 alpine:latest）
+docker compose up -d --build
+```
+`docker compose logs -f lanwatch` 看启动；容器健康后 Traefik 自动签发证书并注册路由。
+（改了 Go 代码后，重复步骤 2+3 即可；`build/lanwatch` 已被 `.gitignore` 忽略，不会入库。）
+
+**为何用非常用端口 + 反代**：直连 `:8080` 既暴露明文也占用常用端口；改为内部 `9123` + Traefik 终止 TLS，既收敛攻击面又统一证书管理。注意 `public_url` 必须设为对外地址，否则通知邮件里的"确认订阅"链接会是内网地址、无法点击。
 
 ---
 

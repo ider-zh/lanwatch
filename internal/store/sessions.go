@@ -53,7 +53,7 @@ func (s *Store) CloseOpenSessions(mac string, endAt int64, reason string) error 
 func (s *Store) LatestSession(mac string) (*PresenceSession, error) {
 	var p PresenceSession
 	var endAt, dur sql.NullInt64
-	err := s.QueryRow(`SELECT id, mac, start_at, end_at, duration_s, end_reason
+	err := s.QueryRow(`SELECT id, mac, start_at, end_at, duration_s, COALESCE(end_reason, '') AS end_reason
 		FROM presence_sessions WHERE mac=? ORDER BY id DESC LIMIT 1`, mac).
 		Scan(&p.ID, &p.MAC, &p.StartAt, &endAt, &dur, &p.EndReason)
 	if err == sql.ErrNoRows {
@@ -89,7 +89,7 @@ func (s *Store) ReopenLatestSession(mac string) error {
 
 // ListSessions 返回区间 [from,to] 内（含边界相交）的在线区间，用于时间轴。
 func (s *Store) ListSessions(mac string, from, to int64) ([]PresenceSession, error) {
-	rows, err := s.Query(`SELECT id, mac, start_at, end_at, duration_s, end_reason
+	rows, err := s.Query(`SELECT id, mac, start_at, end_at, duration_s, COALESCE(end_reason, '') AS end_reason
 		FROM presence_sessions
 		WHERE mac=? AND start_at < ? AND (end_at IS NULL OR end_at > ?)
 		ORDER BY start_at ASC`, mac, to, from)
