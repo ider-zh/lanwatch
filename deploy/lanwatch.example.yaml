@@ -1,0 +1,59 @@
+# lanwatch 配置示例
+# 实际部署建议：
+#   - secret 用 ${LANWATCH_SECRET} 注入（见 deploy/lanwatch.env）
+#   - 凭据用 ${ASUS_PASSWORD} / ${TPLINK_PASSWORD} 注入
+#   - 权限 0600，属主 lanwatch
+
+listen_addr: 127.0.0.1:8080        # 内网直连改 0.0.0.0:8080（建议前置 Caddy/Nginx 终止 TLS）
+db_path: /var/lib/lanwatch/lanwatch.db
+secret: ${LANWATCH_SECRET}
+
+collect:
+  interval: 60s
+  discover_sweep_every: 10
+  round_timeout: 10s
+  sweep_timeout: 15s
+  ssh_keepalive: 30s
+  ssh_timeout: 10s
+  http_timeout: 8s
+
+presence:
+  miss_threshold: 2
+  hit_threshold: 1
+  session_merge_gap: 120s
+  min_offline_notify_sec: 120
+  confirm_ping: true
+  flap:
+    window: 10m
+    threshold: 4
+    suppress: 30m
+
+retention:
+  probe_samples_days: 7
+  sessions_days: 180
+  notify_logs_days: 30
+  prune_at: "03:10"
+
+notify:
+  rate_limit_per_channel: 15
+  retry: [30s, 2m, 10m]
+  cooldown_sec: 300
+
+sources:
+  - id: asus-1
+    kind: asus-ssh
+    host: 192.168.1.1:22
+    username: admin
+    password: ${ASUS_PASSWORD}
+    bridge: br0
+    subnets: ["192.168.1.0/24"]
+    enabled: true
+
+  # TP-Link 适配器已在 M2 实现：密码错 10 次会锁定 20 分钟，故运行时严格退避/锁死。
+  # 凭据用 ${TPLINK_PASSWORD} 注入；base_url 即路由器管理地址（含端口）。
+  - id: tplink-1
+    kind: tplink-http
+    base_url: http://192.168.1.3:8888
+    password: ${TPLINK_PASSWORD}
+    subnets: ["192.168.99.0/24"]
+    enabled: true

@@ -1,0 +1,25 @@
+# 构建产物与运行时数据
+/lanwatch
+/cmd/lanwatch/lanwatch
+*.db
+*.db-shm
+*.db-wal
+initial_admin.txt
+/var/
+
+# 运行时数据库目录（含密码哈希与加密凭据，绝不入库）
+/data/
+
+# 真实凭据：只存本地 .env，绝不入库（模板见 .env.example）
+.env
+.env.local
+*.env
+!.env.example
+
+# 前端构建产物（M1 起启用）
+/web/dist/
+/web/node_modules/
+
+# 本地测试产物
+/tmp/
+__pycache__/
