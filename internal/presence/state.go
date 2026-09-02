@@ -123,13 +123,11 @@ func (e *Engine) registerHit(mac string, now int64) {
 		if _, err := e.st.OpenSession(mac, now, "online"); err != nil {
 			e.log.Warn("open session", "mac", mac, "err", err)
 		}
-	// 只有真正处于抑制窗口内才算抑制。放在 recordTransition 之前判断，
-	// 保证抑制期结束后的第一次切换能正常发通知（原实现会白白吞掉一条）。
-	suppressedNow := ds.flapping && now < ds.flapUntil
-	e.recordTransition(mac, now)
-	if !suppressedNow {
-		e.emit(Event{Type: TypeOnline, MAC: mac, At: now})
-	}
+		// 抖动(Flapping)不再在 presence 层丢弃事件：事件照常发出并带上 Flapping 标记，
+		// 由通知引擎按 (设备,渠道,事件) 冷却去重决定最终是否推送（原设计意图，见 suppressed()）。
+		// 否则一旦进入 flapping，30 分钟内所有离线/上线事件被静默，导致「上线通知了、离线没通知」。
+		e.recordTransition(mac, now)
+		e.emit(Event{Type: TypeOnline, MAC: mac, At: now, Flapping: ds.flapping})
 	}
 	ds.state = StOnline
 }
@@ -158,21 +156,12 @@ func (e *Engine) registerMiss(mac string, now int64) {
 		dur = &d
 		lastSeen = latest.StartAt
 	}
-	suppressedNow := ds.flapping && now < ds.flapUntil
+	// 抖动(Flapping)不再在 presence 层丢弃离线事件：照常发出并带 Flapping 标记，
+	// 由通知引擎按冷却去重处理，避免「设备已稳定在线后又离线却收不到通知」。
 	e.recordTransition(mac, now)
-	if !suppressedNow {
-		e.emit(Event{
-			Type: TypeOffline, MAC: mac, At: now,
-			DurationS: dur, LastSeen: lastSeen, Flapping: ds.flapping,
-		})
-	}
+	e.emit(Event{
+		Type: TypeOffline, MAC: mac, At: now,
+		DurationS: dur, LastSeen: lastSeen, Flapping: ds.flapping,
+	})
 	ds.state = StOffline
-}
-
-// suppressed 抖动抑制期内返回 true（事件仍会带上 Flapping 标记，由通知引擎决定是否抑制）。
-func (e *Engine) suppressed(ds *deviceState, now int64) bool {
-	if ds.flapping && now < ds.flapUntil {
-		return true
-	}
-	return false
 }

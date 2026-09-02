@@ -116,7 +116,9 @@ func TestMergeGap(t *testing.T) {
 }
 
 func TestFlapSuppress(t *testing.T) {
-	// 阈值=2：两次切换即进入 flapping，之后 offline 事件被抑制
+	// 阈值=2：两次切换即进入 flapping，并持续给事件打 Flapping 标记。
+	// 注意：presence 层不再因 flapping 丢弃 online/offline 事件（交由通知引擎按冷却去重），
+	// 因此两次离线都应照常发出，且带 Flapping 标记（这是修复「上线通知了、离线没通知」的关键）。
 	e, closeFn := newTestEngine(t, 2)
 	defer closeFn()
 	ctx := context.Background()
@@ -126,21 +128,55 @@ func TestFlapSuppress(t *testing.T) {
 	e.ProcessRound(ctx, round(map[string]bool{}))                          // offline (trans1)
 	e.ProcessRound(ctx, round(map[string]bool{"CC:CC:CC:CC:CC:CC": true})) // online (trans2 -> flapping)
 	e.ProcessRound(ctx, round(map[string]bool{}))
-	e.ProcessRound(ctx, round(map[string]bool{})) // offline again, 应被抑制
+	e.ProcessRound(ctx, round(map[string]bool{})) // offline again
 
 	evs := collect(e.Events())
-	flapping := hasType(evs, TypeFlapping)
-	if !flapping {
+	if !hasType(evs, TypeFlapping) {
 		t.Fatal("expected flapping event")
 	}
 	offlineCount := 0
+	offlineFlapping := 0
 	for _, ev := range evs {
 		if ev.Type == TypeOffline {
 			offlineCount++
+			if ev.Flapping {
+				offlineFlapping++
+			}
 		}
 	}
-	if offlineCount != 1 {
-		t.Fatalf("expected 1 offline event (2nd suppressed), got %d", offlineCount)
+	if offlineCount != 2 {
+		t.Fatalf("expected 2 offline events (flap no longer drops them), got %d", offlineCount)
+	}
+	if offlineFlapping == 0 {
+		t.Fatal("expected the offline during flapping to carry Flapping=true")
+	}
+}
+
+// TestOfflineEmittedDespiteFlapping 回归用户报告：设备上线后通知了，但之后再离线却没通知。
+// 根因是 presence 层在 flapping 期间把 online/offline 事件整段丢弃，导致一次真实的离线被静默。
+// 修复后事件照常发出（带 Flapping 标记），由通知引擎按冷却去重，离线也能收到。
+func TestOfflineEmittedDespiteFlapping(t *testing.T) {
+	e, closeFn := newTestEngine(t, 2)
+	defer closeFn()
+	ctx := context.Background()
+	mac := "AB:CD:EF:01:02:03"
+
+	e.ProcessRound(ctx, round(map[string]bool{mac: true})) // online (trans1)
+	e.ProcessRound(ctx, round(map[string]bool{}))
+	e.ProcessRound(ctx, round(map[string]bool{})) // offline (trans2 -> flapping), offline#1
+	e.ProcessRound(ctx, round(map[string]bool{mac: true})) // 再次上线（flapping 中），online
+	e.ProcessRound(ctx, round(map[string]bool{}))
+	e.ProcessRound(ctx, round(map[string]bool{})) // 再次离线（flapping 中）—— 修复前被丢弃
+
+	evs := collect(e.Events())
+	offline := 0
+	for _, ev := range evs {
+		if ev.Type == TypeOffline {
+			offline++
+		}
+	}
+	if offline != 2 {
+		t.Fatalf("expected 2 offline events (the 2nd must not be silenced by flapping), got %d", offline)
 	}
 }
 
