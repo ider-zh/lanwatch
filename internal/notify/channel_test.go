@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ider-zh/lanwatch/internal/config"
+	"github.com/ider-zh/lanwatch/internal/presence"
 	"github.com/ider-zh/lanwatch/internal/store"
 )
 
@@ -64,6 +66,27 @@ func TestRenderEmail(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Fatalf("email html missing %q", want)
 		}
+	}
+}
+
+// TestEventTimeInCST 验证 toData 把事件时间转换为中国标准时间（UTC+8）而非 UTC。
+// 1970-01-01 00:00:00 UTC 应显示为 1970-01-01 08:00:00。
+func TestEventTimeInCST(t *testing.T) {
+	e, _, cleanup := newTestEngine(t, config.NotifyConfig{})
+	defer cleanup()
+
+	ev := presence.Event{Type: "online", MAC: "AA-BB-CC-DD-EE-FF", IP: "192.168.1.50", At: 0}
+	d := e.toData(ev)
+	got := d.Event.At.Format("2006-01-02 15:04:05")
+	if got != "1970-01-01 08:00:00" {
+		t.Fatalf("event time not in CST (+8h), got %q", got)
+	}
+
+	// 离线事件的上次在线时间也应转换为 CST（只取时分秒）。
+	ev2 := presence.Event{Type: "offline", MAC: "AA-BB-CC-DD-EE-FF", IP: "192.168.1.50", At: 0, LastSeen: 1}
+	d2 := e.toData(ev2)
+	if d2.LastSeen != "08:00:01" {
+		t.Fatalf("last seen not in CST (+8h), got %q", d2.LastSeen)
 	}
 }
 

@@ -13,6 +13,10 @@ import (
 	"github.com/ider-zh/lanwatch/internal/store"
 )
 
+// cst 中国标准时间（UTC+8），通知模板中所有时间统一按此渲染，
+// 不依赖容器 locale（本镜像未设置 TZ，time.Local 默认是 UTC，会导致差 8 小时）。
+var cst = time.FixedZone("CST", 8*3600)
+
 // Engine 通知引擎：消费 presence 事件，展开为候选发送，应用冷却/限流/聚合/重试，
 // 渲染模板并经渠道发送，所有发送写 notify_logs 审计。
 type Engine struct {
@@ -225,7 +229,7 @@ func (e *Engine) toData(ev presence.Event) TemplateData {
 			MAC: ev.MAC, IP: ev.IP, Hostname: hostname, Name: name, Vendor: ev.Vendor,
 			LinkType: ev.LinkType, SSID: ev.SSID,
 		},
-		Event:      EventView{Type: ev.Type, At: time.Unix(ev.At, 0)},
+		Event:      EventView{Type: ev.Type, At: time.Unix(ev.At, 0).In(cst)},
 		SourceName: ev.SourceID,
 		BaseURL:    e.baseURL,
 		Flapping:   ev.Flapping,
@@ -234,7 +238,7 @@ func (e *Engine) toData(ev presence.Event) TemplateData {
 		d.Duration = (time.Duration(*ev.DurationS) * time.Second).String()
 	}
 	if ev.LastSeen != 0 {
-		d.LastSeen = time.Unix(ev.LastSeen, 0).Format("15:04:05")
+		d.LastSeen = time.Unix(ev.LastSeen, 0).In(cst).Format("15:04:05")
 	}
 	return d
 }
