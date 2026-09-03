@@ -180,6 +180,46 @@ func TestOfflineEmittedDespiteFlapping(t *testing.T) {
 	}
 }
 
+// TestLastSeenOnlyOnOnlineTransition 回归：设备页「最近上线」(last_seen) 原实现会在每次
+// 采集轮（只要设备仍被观测到，含 absent/低置信度）都刷成当前时间，导致一直显示"1分钟前"。
+// 修复后 last_seen 只在真正进入在线时更新，连续在线/离线期间保持不变。
+func TestLastSeenOnlyOnOnlineTransition(t *testing.T) {
+	e, closeFn := newTestEngine(t, 99)
+	defer closeFn()
+	ctx := context.Background()
+	mac := source.NormalizeMAC("11:22:33:44:55:66")
+
+	// 首次上线
+	e.ProcessRound(ctx, round(map[string]bool{mac: true}))
+	dev, err := e.st.GetDevice(mac)
+	if err != nil || dev == nil {
+		t.Fatalf("get device: %v", err)
+	}
+	firstOnline := dev.LastSeen
+	if firstOnline == 0 {
+		t.Fatal("last_seen should be set on online")
+	}
+
+	// 连续多轮仍被观测到（在线）：last_seen 不应被刷新。
+	// 每轮之间 sleep 超过 1s，使 now（秒级）真正前进——否则同秒内无法区分旧实现的"每次刷新"。
+	for i := 0; i < 3; i++ {
+		time.Sleep(1100 * time.Millisecond)
+		e.ProcessRound(ctx, round(map[string]bool{mac: true}))
+	}
+	dev, _ = e.st.GetDevice(mac)
+	if dev.LastSeen != firstOnline {
+		t.Fatalf("last_seen must not change while continuously online; got %d want %d", dev.LastSeen, firstOnline)
+	}
+
+	// 离线（两轮缺席）：last_seen 仍应保持上次上线时间，不被清零/刷新
+	e.ProcessRound(ctx, round(map[string]bool{}))
+	e.ProcessRound(ctx, round(map[string]bool{}))
+	dev, _ = e.st.GetDevice(mac)
+	if dev.LastSeen != firstOnline {
+		t.Fatalf("last_seen must persist through offline; got %d want %d", dev.LastSeen, firstOnline)
+	}
+}
+
 // multiRound 构造来自多个源的采集轮次：srcMacs[sourceID] = mac -> present。
 func multiRound(srcMacs map[string]map[string]bool) *source.RoundResult {
 	rr := source.NewRoundResult()

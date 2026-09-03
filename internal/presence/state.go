@@ -70,11 +70,11 @@ func (e *Engine) detectChanges(mac string, mo *mergedObs, now int64) {
 	changedIP := mo.ip != "" && mo.ip != dev.CurrentIP
 	changedHost := mo.hostname != "" && mo.hostname != dev.Hostname
 	if !changedIP && !changedHost {
-		// 仍更新 last_seen
-		_ = e.st.UpsertDevice(store.Device{MAC: mac, LastSeen: now})
+		// 无属性变化：不再更新 last_seen。last_seen 表示"最近一次上线"，
+		// 只在真正进入在线时更新（见 registerHit），避免每次观测都刷成"1分钟前"。
 		return
 	}
-	upd := store.Device{MAC: mac, LastSeen: now}
+	upd := store.Device{MAC: mac}
 	if changedIP {
 		upd.CurrentIP = mo.ip
 	}
@@ -122,6 +122,10 @@ func (e *Engine) registerHit(mac string, now int64) {
 	} else {
 		if _, err := e.st.OpenSession(mac, now, "online"); err != nil {
 			e.log.Warn("open session", "mac", mac, "err", err)
+		}
+		// last_seen 表示"最近一次上线"，仅在进入在线这一刻更新（而非每次观测都刷）。
+		if err := e.st.UpsertDevice(store.Device{MAC: mac, LastSeen: now}); err != nil {
+			e.log.Warn("update last_seen on online", "mac", mac, "err", err)
 		}
 		// 抖动(Flapping)不再在 presence 层丢弃事件：事件照常发出并带上 Flapping 标记，
 		// 由通知引擎按 (设备,渠道,事件) 冷却去重决定最终是否推送（原设计意图，见 suppressed()）。

@@ -68,8 +68,10 @@ func (s *Store) UpsertDevice(d Device) error {
 	if d.Notes != "" {
 		notes = d.Notes
 	}
-	_, err = s.Exec(`UPDATE devices SET name=?, hostname=?, vendor=?, current_ip=?, link_type=?, ssid=?, status=?, notes=?, last_seen=? WHERE mac=?`,
-		name, hostname, vendor, ip, link, ssid, status, notes, ts, d.MAC)
+	// last_seen 仅在调用方显式传入非零值时更新（如进入在线时）；
+	// 传 0 表示"不改动"，避免每次观测都把它刷成当前时间（否则"最近上线"永远显示"1分钟前"）。
+	_, err = s.Exec(`UPDATE devices SET name=?, hostname=?, vendor=?, current_ip=?, link_type=?, ssid=?, status=?, notes=?, last_seen=CASE WHEN ?=0 THEN last_seen ELSE ? END WHERE mac=?`,
+		name, hostname, vendor, ip, link, ssid, status, notes, ts, ts, d.MAC)
 	return err
 }
 
