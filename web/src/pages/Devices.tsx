@@ -16,15 +16,29 @@ function toggle(list: string[], v: string): string[] {
 }
 
 export default function Devices() {
+  const qc = useQueryClient()
+  const [hideFixedServers, setHideFixedServers] = useState(() => {
+    try {
+      return localStorage.getItem('devices.hideFixedServers') === 'true'
+    } catch {
+      return false
+    }
+  })
+  const markMut = useMutation({
+    mutationFn: (device: Device) =>
+      api.patchDevice(device.mac, { fixed_server: !device.fixed_server }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
+  })
   const [q, setQ] = useState('')
   const [onlineOnly, setOnlineOnly] = useState(false)
   const [subMac, setSubMac] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['devices', q, onlineOnly],
+    queryKey: ['devices', q, onlineOnly, hideFixedServers],
     queryFn: () =>
       api.devices({
         q,
+        hide_fixed_servers: hideFixedServers ? 'true' : '',
         online: onlineOnly ? 'true' : '',
       }),
   })
@@ -35,7 +49,7 @@ export default function Devices() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-3 mb-4">
         <h2 className="text-lg font-semibold">设备</h2>
         <input
           placeholder="搜索名称/MAC/IP…"
@@ -51,11 +65,32 @@ export default function Devices() {
           />
           仅在线
         </label>
+        <label className="text-sm text-slate-300 flex items-center gap-1">
+          <input
+            type="checkbox"
+            checked={hideFixedServers}
+            onChange={(e) => {
+              setHideFixedServers(e.target.checked)
+              try {
+                localStorage.setItem('devices.hideFixedServers', String(e.target.checked))
+              } catch {
+                // 存储不可用时，筛选仍在当前页面生效。
+              }
+            }}
+          />
+          隐藏固定服务器
+        </label>
         <span className="text-sm text-slate-500">共 {devices.length} 台</span>
       </div>
 
       {isLoading && <div className="text-slate-400">加载中…</div>}
       {error && <div className="text-rose-400">加载失败：{(error as Error).message}</div>}
+
+      {markMut.isError && (
+        <div role="alert" className="text-rose-400 mb-3">
+          标记保存失败：{markMut.error.message}
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-sm">
@@ -73,6 +108,13 @@ export default function Devices() {
             </tr>
           </thead>
           <tbody>
+            {!isLoading && !error && devices.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-3 py-8 text-center text-slate-500">
+                  没有符合筛选条件的设备，可调整筛选或搜索条件。
+                </td>
+              </tr>
+            )}
             {devices.map((d) => (
               <tr key={d.mac} className="border-t border-slate-800 hover:bg-slate-900/50">
                 <td className="px-3 py-2">
@@ -89,7 +131,18 @@ export default function Devices() {
                 <td className="px-3 py-2 text-slate-400">{d.vendor || '-'}</td>
                 <td className="px-3 py-2 text-slate-400">{fmt(d.last_seen)}</td>
                 <td className="px-3 py-2 text-slate-300">{pct(d.online_ratio_24h)}</td>
-                <td className="px-3 py-2 text-slate-500">{d.status}</td>
+                <td className="px-3 py-2">
+                  <div className="text-slate-500 mb-1">{d.status}</div>
+                  <button
+                    className={`text-xs px-2 py-1 rounded disabled:opacity-50 ${d.fixed_server ? 'bg-sky-900 text-sky-200' : 'bg-slate-800 hover:bg-slate-700'}`}
+                    aria-pressed={d.fixed_server}
+                    aria-label={`${d.fixed_server ? '取消' : '设为'}固定服务器：${d.name || d.hostname || d.mac}`}
+                    disabled={markMut.isPending}
+                    onClick={() => markMut.mutate(d)}
+                  >
+                    {d.fixed_server ? '固定服务器 · 取消' : '设为固定服务器'}
+                  </button>
+                </td>
                 <td className="px-3 py-2">
                   <button
                     className="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"

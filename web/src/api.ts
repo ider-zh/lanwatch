@@ -31,6 +31,7 @@ export interface User {
 }
 
 export interface Device {
+  fixed_server: boolean
   mac: string
   name: string
   hostname: string
@@ -159,6 +160,11 @@ export const api = {
     const s = sp.toString()
     return req<{ devices: Device[] }>(`/api/devices${s ? `?${s}` : ''}`)
   },
+  patchDevice: (mac: string, body: { fixed_server: boolean }) =>
+    req<{ ok: boolean }>(`/api/devices/${encodeURIComponent(mac)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   timeline: (from: number, to: number) =>
     req<{ from: number; to: number; devices: TimelineDevice[] }>(
       `/api/timeline?from=${from}&to=${to}`,

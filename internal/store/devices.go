@@ -10,9 +10,9 @@ func (s *Store) GetDevice(mac string) (*Device, error) {
 	var d Device
 	var random int
 	err := s.QueryRow(`SELECT mac, name, hostname, vendor, current_ip, link_type, ssid, status,
-		likely_random_mac, first_seen, last_seen, notes FROM devices WHERE mac=?`, mac).
+		likely_random_mac, first_seen, last_seen, notes, fixed_server FROM devices WHERE mac=?`, mac).
 		Scan(&d.MAC, &d.Name, &d.Hostname, &d.Vendor, &d.CurrentIP, &d.LinkType, &d.SSID,
-			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes)
+			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -36,10 +36,10 @@ func (s *Store) UpsertDevice(d Device) error {
 			first = ts
 		}
 		_, err := s.Exec(`INSERT INTO devices
-			(mac, name, hostname, vendor, current_ip, link_type, ssid, status, likely_random_mac, first_seen, last_seen, notes)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+			(mac, name, hostname, vendor, current_ip, link_type, ssid, status, likely_random_mac, first_seen, last_seen, notes, fixed_server)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			d.MAC, d.Name, d.Hostname, d.Vendor, d.CurrentIP, d.LinkType, d.SSID, d.Status,
-			boolToInt(d.LikelyRandomMAC), first, ts, d.Notes)
+			boolToInt(d.LikelyRandomMAC), first, ts, d.Notes, boolToInt(d.FixedServer))
 		return err
 	}
 	// 仅用非空字段覆盖
@@ -75,7 +75,7 @@ func (s *Store) UpsertDevice(d Device) error {
 	return err
 }
 
-func (s *Store) SetDevice(mac, name, notes string, ignored *bool) error {
+func (s *Store) SetDevice(mac, name, notes string, ignored, fixedServer *bool) error {
 	q := "UPDATE devices SET"
 	var args []any
 	if name != "" {
@@ -94,6 +94,13 @@ func (s *Store) SetDevice(mac, name, notes string, ignored *bool) error {
 			args = append(args, "tracked")
 		}
 	}
+	if fixedServer != nil {
+		q += " fixed_server=?,"
+		args = append(args, boolToInt(*fixedServer))
+	}
+	if len(args) == 0 {
+		return nil
+	}
 	q = strings.TrimSuffix(q, ",") + " WHERE mac=?"
 	args = append(args, mac)
 	_, err := s.Exec(q, args...)
@@ -107,14 +114,15 @@ func (s *Store) SaveIPHistory(mac, ip string, ts int64) error {
 }
 
 type DeviceFilter struct {
-	Online *bool
-	Status string
-	Q      string
+	HideFixedServers bool
+	Online           *bool
+	Status           string
+	Q                string
 }
 
 func (s *Store) ListDevices(f DeviceFilter) ([]Device, error) {
 	q := `SELECT mac, name, hostname, vendor, current_ip, link_type, ssid, status,
-		likely_random_mac, first_seen, last_seen, notes FROM devices WHERE 1=1`
+		likely_random_mac, first_seen, last_seen, notes, fixed_server FROM devices WHERE 1=1`
 	var args []any
 	if f.Q != "" {
 		q += " AND (mac LIKE ? OR name LIKE ? OR hostname LIKE ? OR current_ip LIKE ?)"
@@ -124,6 +132,9 @@ func (s *Store) ListDevices(f DeviceFilter) ([]Device, error) {
 	if f.Status != "" {
 		q += " AND status=?"
 		args = append(args, f.Status)
+	}
+	if f.HideFixedServers {
+		q += " AND fixed_server=0"
 	}
 	q += " ORDER BY last_seen DESC"
 	rows, err := s.Query(q, args...)
@@ -136,7 +147,7 @@ func (s *Store) ListDevices(f DeviceFilter) ([]Device, error) {
 		var d Device
 		var random int
 		if err := rows.Scan(&d.MAC, &d.Name, &d.Hostname, &d.Vendor, &d.CurrentIP, &d.LinkType, &d.SSID,
-			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes); err != nil {
+			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer); err != nil {
 			return nil, err
 		}
 		d.LikelyRandomMAC = random == 1
