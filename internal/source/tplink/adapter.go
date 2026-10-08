@@ -21,11 +21,12 @@ import (
 //   - 连续登录失败退避 60s -> 120s -> 300s；
 //   - 连续失败 >=7 次禁止自动重登，避免把路由器打到锁定（已消耗 5/10 额度）。
 type Adapter struct {
-	id         string
-	baseURL    string
-	password   string
-	httpClient *http.Client
-	log        *slog.Logger
+	id              string
+	baseURL         string
+	password        string
+	passwordEncoded bool
+	httpClient      *http.Client
+	log             *slog.Logger
 
 	mu           sync.Mutex
 	stok         string
@@ -36,7 +37,7 @@ type Adapter struct {
 }
 
 // New 构造 HTTP 适配器。httpTimeout<=0 时默认 8s。
-func New(id, baseURL, password string, httpTimeout time.Duration, log *slog.Logger) *Adapter {
+func New(id, baseURL, password string, passwordEncoded bool, httpTimeout time.Duration, log *slog.Logger) *Adapter {
 	if httpTimeout <= 0 {
 		httpTimeout = 8 * time.Second
 	}
@@ -44,12 +45,13 @@ func New(id, baseURL, password string, httpTimeout time.Duration, log *slog.Logg
 		log = slog.Default()
 	}
 	return &Adapter{
-		id:         id,
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		password:   password,
-		httpClient: &http.Client{Timeout: httpTimeout},
-		healthy:    true,
-		log:        log,
+		id:              id,
+		baseURL:         strings.TrimRight(baseURL, "/"),
+		password:        password,
+		passwordEncoded: passwordEncoded,
+		httpClient:      &http.Client{Timeout: httpTimeout},
+		healthy:         true,
+		log:             log,
 	}
 }
 

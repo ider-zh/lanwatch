@@ -52,9 +52,13 @@ func (a *Adapter) post(ctx context.Context, path string, body interface{}) ([]by
 
 // loginOnce 执行一次登录，成功返回 stok。-40404 返回 errSysLocked，其它非 0 返回错误。
 func (a *Adapter) loginOnce(ctx context.Context) (string, error) {
+	password := a.password
+	if !a.passwordEncoded {
+		password = EncodePassword(password)
+	}
 	body := map[string]interface{}{
 		"method": "do",
-		"login":  map[string]string{"password": EncodePassword(a.password)},
+		"login":  map[string]string{"password": password},
 	}
 	raw, ec, err := a.post(ctx, "/", body)
 	if err != nil {

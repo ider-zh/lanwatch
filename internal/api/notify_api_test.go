@@ -169,6 +169,10 @@ func TestRuleCRUDAndEventArray(t *testing.T) {
 	if !ok || len(events) != 2 {
 		t.Fatalf("events not parsed as array: %v", list.Rules[0]["events"])
 	}
+	channelIDs, ok := list.Rules[0]["channel_ids"].([]interface{})
+	if !ok || len(channelIDs) != 0 {
+		t.Fatalf("channel_ids should be an empty array: %v", list.Rules[0]["channel_ids"])
+	}
 }
 
 func TestSubscriptionsReplace(t *testing.T) {

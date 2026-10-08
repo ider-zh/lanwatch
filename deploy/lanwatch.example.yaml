@@ -56,5 +56,6 @@ sources:
     kind: tplink-http
     base_url: http://192.168.1.3:8888
     password: ${TPLINK_PASSWORD}
+    password_encoded: false
     subnets: ["192.168.99.0/24"]
     enabled: true

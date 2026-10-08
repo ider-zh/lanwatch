@@ -2,6 +2,7 @@ package tplink
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +23,32 @@ func TestEncodePassword(t *testing.T) {
 	const want = "t7zU2drULeefbwK"
 	if got := EncodePassword("DevPass123"); got != want {
 		t.Fatalf("EncodePassword mismatch: got %q want %q", got, want)
+	}
+}
+
+func TestLoginWithEncodedPassword(t *testing.T) {
+	const encodedPassword = "test-encoded-password"
+	var receivedPassword string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Login struct {
+				Password string `json:"password"`
+			} `json:"login"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		receivedPassword = body.Login.Password
+		_, _ = w.Write([]byte(`{"stok":"test-stok","error_code":0}`))
+	}))
+	t.Cleanup(srv.Close)
+
+	a := New("tplink-1", srv.URL, encodedPassword, true, 5*time.Second, nil)
+	if _, err := a.loginOnce(context.Background()); err != nil {
+		t.Fatalf("loginOnce: %v", err)
+	}
+	if receivedPassword != encodedPassword {
+		t.Fatalf("encoded password changed: got %q want %q", receivedPassword, encodedPassword)
 	}
 }
 
@@ -47,7 +74,7 @@ func newTestServer(t *testing.T, loginBody string, loginHits *int) *httptest.Ser
 func TestCollectHappyPath(t *testing.T) {
 	var loginHits int
 	srv := newTestServer(t, `{"stok":"test-stok","error_code":0}`, &loginHits)
-	a := New("tplink-1", srv.URL, "DevPass123", 5*time.Second, nil)
+	a := New("tplink-1", srv.URL, "DevPass123", false, 5*time.Second, nil)
 
 	ctx := context.Background()
 	obs1, err := a.Collect(ctx)
@@ -113,7 +140,7 @@ func TestCollectSysLocked(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	a := New("tplink-1", srv.URL, "DevPass123", 5*time.Second, nil)
+	a := New("tplink-1", srv.URL, "DevPass123", false, 5*time.Second, nil)
 	ctx := context.Background()
 
 	_, err1 := a.Collect(ctx)

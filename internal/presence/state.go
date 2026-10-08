@@ -14,12 +14,14 @@ const (
 )
 
 type deviceState struct {
-	state       State
-	hits        int
-	misses      int
-	transitions []int64 // 最近 online<->offline 切换时刻
-	flapping    bool
-	flapUntil   int64
+	state          State
+	hits           int
+	misses         int
+	firstMissAt    int64
+	lastObservedAt int64
+	transitions    []int64 // 最近 online<->offline 切换时刻
+	flapping       bool
+	flapUntil      int64
 }
 
 // processDevice 处理单个被观测到的设备：登记/合并设备、检测属性变化、推进状态机。
@@ -98,6 +100,8 @@ func (e *Engine) registerHit(mac string, now int64) {
 	ds := e.states[mac]
 	ds.hits++
 	ds.misses = 0
+	ds.firstMissAt = 0
+	ds.lastObservedAt = now
 
 	if ds.state == StOnline {
 		return
@@ -139,6 +143,9 @@ func (e *Engine) registerHit(mac string, now int64) {
 // registerMiss 未观测到计数 + 状态转移（离线判定）。
 func (e *Engine) registerMiss(mac string, now int64) {
 	ds := e.states[mac]
+	if ds.misses == 0 {
+		ds.firstMissAt = now
+	}
 	ds.misses++
 	ds.hits = 0
 
@@ -152,20 +159,13 @@ func (e *Engine) registerMiss(mac string, now int64) {
 	if err := e.st.CloseOpenSessions(mac, now, "offline"); err != nil {
 		e.log.Warn("close session", "mac", mac, "err", err)
 	}
-	latest, _ := e.st.LatestSession(mac)
-	var dur *int64
-	var lastSeen int64
-	if latest != nil {
-		d := now - latest.StartAt
-		dur = &d
-		lastSeen = latest.StartAt
-	}
+	duration := now - ds.firstMissAt
 	// 抖动(Flapping)不再在 presence 层丢弃离线事件：照常发出并带 Flapping 标记，
 	// 由通知引擎按冷却去重处理，避免「设备已稳定在线后又离线却收不到通知」。
 	e.recordTransition(mac, now)
 	e.emit(Event{
 		Type: TypeOffline, MAC: mac, At: now,
-		DurationS: dur, LastSeen: lastSeen, Flapping: ds.flapping,
+		DurationS: &duration, LastSeen: ds.lastObservedAt, Flapping: ds.flapping,
 	})
 	ds.state = StOffline
 }

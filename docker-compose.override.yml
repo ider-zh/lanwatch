@@ -1,0 +1,4 @@
+services:
+  lanwatch:
+    ports:
+      - "9123:9123"

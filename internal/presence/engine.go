@@ -33,8 +33,8 @@ type Event struct {
 	SourceID  string
 	At        int64
 	Flapping  bool
-	DurationS *int64 // offline 事件：已离线时长
-	LastSeen  int64  // 上次在线时刻
+	DurationS *int64 // offline 事件：从首轮连续未检测到到判定离线的时长
+	LastSeen  int64  // 最近确认在线的观测时刻；重启后未知时为 0
 }
 
 // Engine 在线状态机：归并多源证据、维护每设备状态、产出区间与事件。

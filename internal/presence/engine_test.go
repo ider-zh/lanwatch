@@ -88,6 +88,49 @@ func TestOnlineThenOffline(t *testing.T) {
 	}
 }
 
+func TestOfflineTimingUsesObservations(t *testing.T) {
+	engine, cleanup := newTestEngine(t, 99)
+	defer cleanup()
+	const mac = "30-05-5C-26-18-50"
+	engine.processDevice(mac, &mergedObs{present: true}, 1000)
+	engine.registerHit(mac, 2620)
+	collect(engine.Events())
+	engine.registerMiss(mac, 2680)
+	if events := collect(engine.Events()); len(events) != 0 {
+		t.Fatalf("first miss emitted events: %+v", events)
+	}
+	engine.registerMiss(mac, 2740)
+	checkOffline := func(duration, lastSeen int64) {
+		t.Helper()
+		for _, event := range collect(engine.Events()) {
+			if event.Type == TypeOffline {
+				if event.DurationS == nil || *event.DurationS != duration || event.LastSeen != lastSeen {
+					t.Fatalf("unexpected offline timing: %+v, want duration=%d lastSeen=%d", event, duration, lastSeen)
+				}
+				return
+			}
+		}
+		t.Fatal("missing offline event")
+	}
+	checkOffline(60, 2620)
+	engine.registerHit(mac, 2800)
+	engine.registerMiss(mac, 2860)
+	engine.registerHit(mac, 2920)
+	engine.registerMiss(mac, 2980)
+	engine.registerMiss(mac, 3040)
+	checkOffline(60, 2920)
+
+	engine.registerHit(mac, 3100)
+	restarted := New(engine.st, engine.cfg, nil)
+	if err := restarted.Init(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	restarted.registerMiss(mac, 4000)
+	restarted.registerMiss(mac, 4060)
+	engine = restarted
+	checkOffline(60, 0)
+}
+
 func TestMergeGap(t *testing.T) {
 	e, closeFn := newTestEngine(t, 99)
 	defer closeFn()
@@ -163,7 +206,7 @@ func TestOfflineEmittedDespiteFlapping(t *testing.T) {
 
 	e.ProcessRound(ctx, round(map[string]bool{mac: true})) // online (trans1)
 	e.ProcessRound(ctx, round(map[string]bool{}))
-	e.ProcessRound(ctx, round(map[string]bool{})) // offline (trans2 -> flapping), offline#1
+	e.ProcessRound(ctx, round(map[string]bool{}))          // offline (trans2 -> flapping), offline#1
 	e.ProcessRound(ctx, round(map[string]bool{mac: true})) // 再次上线（flapping 中），online
 	e.ProcessRound(ctx, round(map[string]bool{}))
 	e.ProcessRound(ctx, round(map[string]bool{})) // 再次离线（flapping 中）—— 修复前被丢弃

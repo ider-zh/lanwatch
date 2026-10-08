@@ -18,12 +18,12 @@ export default function Overview() {
           value={s?.all_healthy ? '正常' : '异常'}
           accent={s?.all_healthy ? 'text-emerald-400' : 'text-rose-400'}
         />
-        <Card label="源数量" value={s?.sources.length ?? '-'} accent="text-slate-200" />
+        <Card label="源数量" value={s?.sources?.length ?? '-'} accent="text-slate-200" />
       </div>
 
       <h3 className="text-sm font-semibold text-slate-300 mb-2">采集源</h3>
       <div className="space-y-2">
-        {s?.sources.map((src) => (
+        {(s?.sources ?? []).map((src) => (
           <div
             key={src.ID}
             className="flex items-center justify-between px-3 py-2 rounded bg-slate-900 border border-slate-800"

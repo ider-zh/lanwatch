@@ -150,7 +150,7 @@ func (s *Store) ListRuleChannelIDs(ruleID int64) ([]int64, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []int64
+	out := make([]int64, 0)
 	for rows.Next() {
 		var cid int64
 		if err := rows.Scan(&cid); err != nil {
@@ -182,7 +182,7 @@ func (s *Store) ListSubscriptions(mac string) ([]Subscription, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Subscription
+	out := make([]Subscription, 0)
 	for rows.Next() {
 		var sub Subscription
 		if err := rows.Scan(&sub.MAC, &sub.ChannelID, &sub.Events); err != nil {
@@ -206,7 +206,7 @@ func (s *Store) ListChannelsForDevice(mac string) ([]int64, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []int64
+	out := make([]int64, 0)
 	for rows.Next() {
 		var cid int64
 		if err := rows.Scan(&cid); err != nil {

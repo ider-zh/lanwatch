@@ -46,7 +46,7 @@ func TestRenderDingtalk(t *testing.T) {
 	if !strings.Contains(text, "设备离线") {
 		t.Fatalf("expected offline title, got %q", title)
 	}
-	for _, want := range []string{"phone", "192.168.1.50", "AA-BB-CC-DD-EE-FF", "Apple", "已离线", "5m", "asus-1"} {
+	for _, want := range []string{"phone", "192.168.1.50", "AA-BB-CC-DD-EE-FF", "Apple", "连续未检测到", "最后确认在线", "5m", "asus-1"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("dingtalk text missing %q:\n%s", want, text)
 		}
@@ -65,6 +65,30 @@ func TestRenderEmail(t *testing.T) {
 	for _, want := range []string{"AA-BB-CC-DD-EE-FF", "192.168.1.50", "/timeline"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("email html missing %q", want)
+		}
+	}
+}
+
+func TestOfflineTemplatesWithoutObservationTime(t *testing.T) {
+	data := sampleData()
+	data.Duration = "1m0s"
+	data.LastSeen = ""
+	_, markdown, err := renderDingtalk(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, err := renderEmailHTML(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rendered := range []string{markdown, html} {
+		if !strings.Contains(rendered, "连续未检测到") || !strings.Contains(rendered, "1m0s") {
+			t.Fatalf("missing observation duration: %s", rendered)
+		}
+		for _, forbidden := range []string{"已离线", "持续离线", "最后确认在线", "上次在线"} {
+			if strings.Contains(rendered, forbidden) {
+				t.Fatalf("misleading timing %q in %s", forbidden, rendered)
+			}
 		}
 	}
 }

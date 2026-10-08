@@ -102,7 +102,8 @@ type SourceConfig struct {
 	HostKey  string `yaml:"host_key"`
 
 	// tplink-http
-	BaseURL string `yaml:"base_url"`
+	BaseURL         string `yaml:"base_url"`
+	PasswordEncoded bool   `yaml:"password_encoded"`
 }
 
 func defaults() Config {

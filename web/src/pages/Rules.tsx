@@ -88,13 +88,16 @@ export default function Rules() {
                 <span className="font-medium text-slate-100">{r.name}</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">
-                范围：{r.scope} · 事件：{r.events.map((e) => EVENT_CN[e] || e).join('/') || '-'} · 冷却 {r.cooldown_sec}s
+                范围：{r.scope} · 事件：{(r.events ?? []).map((e) => EVENT_CN[e] || e).join('/') || '-'} · 冷却 {r.cooldown_sec}s
                 {r.digest_sec > 0 && ` · 聚合 ${r.digest_sec}s`}
               </div>
-              <div className="text-xs text-slate-500">渠道：{r.channel_ids.length} 个</div>
+              <div className="text-xs text-slate-500">渠道：{(r.channel_ids ?? []).length} 个</div>
             </div>
             <div className="flex items-center gap-2 text-sm">
-              <button className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700" onClick={() => setForm({ ...r })}>
+              <button
+                className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700"
+                onClick={() => setForm({ ...r, events: r.events ?? [], channel_ids: r.channel_ids ?? [] })}
+              >
                 编辑
               </button>
               <button className="px-2 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-rose-200" onClick={() => delMut.mutate(r.id)}>

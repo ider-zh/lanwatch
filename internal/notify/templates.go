@@ -14,7 +14,10 @@ var (
 - **接入**：{{.Device.LinkTypeCN}} / {{.Device.SSID}}{{end}}
 - **时间**：{{.Event.At.Format "2006-01-02 15:04:05"}}
 {{- if eq .Event.Type "offline"}}
-- **已离线**：{{.Duration}}（上次在线 {{.LastSeen}}）{{end}}
+{{- if .Duration}}
+- **连续未检测到**：{{.Duration}}（截至离线判定时刻）{{end}}
+{{- if .LastSeen}}
+- **最后确认在线**：{{.LastSeen}}{{end}}{{end}}
 {{- if .Flapping}}
 - ⚠️ 该设备短时间内反复上下线，后续通知已临时抑制{{end}}
 - **来源**：{{.SourceName}}`))
@@ -29,7 +32,8 @@ var (
     <tr><td style="color:#888">接入方式</td><td>{{.Device.LinkTypeCN}}{{if .Device.SSID}} / {{.Device.SSID}}{{end}}</td></tr>
     <tr><td style="color:#888">发生时间</td><td>{{.Event.At.Format "2006-01-02 15:04:05"}}</td></tr>
     {{if eq .Event.Type "offline"}}
-    <tr><td style="color:#888">持续离线</td><td>{{.Duration}}</td></tr>
+    {{if .Duration}}<tr><td style="color:#888">连续未检测到</td><td>{{.Duration}}（截至离线判定时刻）</td></tr>{{end}}
+    {{if .LastSeen}}<tr><td style="color:#888">最后确认在线</td><td>{{.LastSeen}}</td></tr>{{end}}
     {{end}}
     <tr><td style="color:#888">采集源</td><td>{{.SourceName}}</td></tr>
   </table>

@@ -86,7 +86,7 @@ func main() {
 			}
 			sources = append(sources, adapter)
 		case "tplink-http":
-			adapter := tplink.New(sc.ID, sc.BaseURL, sc.Password, cfg.Collect.HTTPTimeout.Value(), logger)
+			adapter := tplink.New(sc.ID, sc.BaseURL, sc.Password, sc.PasswordEncoded, cfg.Collect.HTTPTimeout.Value(), logger)
 			sources = append(sources, adapter)
 		default:
 			logger.Warn("unknown source kind; skipping", "id", sc.ID, "kind", sc.Kind)
