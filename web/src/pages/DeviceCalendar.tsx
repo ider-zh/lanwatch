@@ -26,7 +26,7 @@ export default function DeviceCalendar() {
   const [endDate, setEndDate] = useState('')
   const [mode, setMode] = useState<'periods' | 'duration'>('periods')
   const [selectedDate, setSelectedDate] = useState('')
-  const devicesQuery = useQuery({ queryKey: ['devices', 'watched'], queryFn: () => api.devices({ watched: 'true' }) })
+  const devicesQuery = useQuery({ queryKey: ['devices', 'watched'], queryFn: () => api.devices({ watched: 'true' }), refetchInterval: 30000, refetchOnWindowFocus: true })
   const devices = devicesQuery.data?.devices ?? []
   const requestedMAC = params.get('mac')
   const mac = devices.find(device => device.mac === requestedMAC)?.mac ?? devices[0]?.mac ?? ''

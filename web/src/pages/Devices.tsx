@@ -32,7 +32,13 @@ export default function Devices() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['devices'] }),
   })
   const [q, setQ] = useState('')
-  const [onlineOnly, setOnlineOnly] = useState(false)
+  const [onlineOnly, setOnlineOnly] = useState(() => {
+    try {
+      return localStorage.getItem('devices.onlineOnly') === 'true'
+    } catch {
+      return false
+    }
+  })
   const [subMac, setSubMac] = useState<string | null>(null)
   const [editing, setEditing] = useState<Device | null>(null)
   const [deviceName, setDeviceName] = useState('')
@@ -74,7 +80,12 @@ export default function Devices() {
           <input
             type="checkbox"
             checked={onlineOnly}
-            onChange={(e) => setOnlineOnly(e.target.checked)}
+            onChange={(event) => {
+              setOnlineOnly(event.target.checked)
+              try {
+                localStorage.setItem('devices.onlineOnly', String(event.target.checked))
+              } catch {}
+            }}
           />
           仅在线
         </label>

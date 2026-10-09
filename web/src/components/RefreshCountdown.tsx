@@ -18,10 +18,13 @@ export default function RefreshCountdown({ query, intervalMs = 30000 }: Props) {
   const [seconds, setSeconds] = useState(Math.ceil(intervalMs / 1000))
 
   useEffect(() => {
-    const onVisibilityChange = () => setVisible(!document.hidden)
+    const onVisibilityChange = () => {
+      setVisible(!document.hidden)
+      if (!document.hidden) void refetch()
+    }
     document.addEventListener('visibilitychange', onVisibilityChange)
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [])
+  }, [refetch])
 
   useEffect(() => {
     setSeconds(Math.ceil(intervalMs / 1000))
