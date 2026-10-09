@@ -109,6 +109,9 @@ func (e *Engine) registerHit(mac string, now int64) {
 	if ds.hits < e.cfg.HitThreshold {
 		return
 	}
+	if err := e.st.OpenCalendarSession(mac, now); err != nil {
+		e.log.Error("open calendar session", "mac", mac, "err", err)
+	}
 
 	// 是否可合并到上一个刚关闭的短区间
 	merge := false
@@ -154,6 +157,9 @@ func (e *Engine) registerMiss(mac string, now int64) {
 	}
 	if ds.misses < e.cfg.MissThreshold {
 		return
+	}
+	if err := e.st.CloseCalendarSession(mac, now); err != nil {
+		e.log.Error("close calendar session", "mac", mac, "err", err)
 	}
 
 	if err := e.st.CloseOpenSessions(mac, now, "offline"); err != nil {

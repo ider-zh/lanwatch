@@ -1,15 +1,20 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api'
+import RefreshCountdown from '../components/RefreshCountdown'
 
 export default function Overview() {
-  const { data, isLoading } = useQuery({ queryKey: ['stats'], queryFn: () => api.stats() })
+  const query = useQuery({ queryKey: ['stats'], queryFn: () => api.stats() })
+  const { data, isLoading } = query
 
   if (isLoading) return <div className="text-slate-400">加载中…</div>
 
   const s = data
   return (
     <div>
-      <h2 className="text-lg font-semibold mb-4">总览</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-lg font-semibold">总览</h2>
+        <RefreshCountdown query={query} />
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Card label="当前在线" value={s?.online_now ?? '-'} accent="text-emerald-400" />
         <Card label="今日新设备" value={s?.new_today ?? '-'} accent="text-sky-400" />

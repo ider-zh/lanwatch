@@ -122,7 +122,7 @@ func defaults() Config {
 			HTTPTimeout:        Duration(8 * time.Second),
 		},
 		Presence: PresenceConfig{
-			MissThreshold:       2,
+			MissThreshold:       3,
 			HitThreshold:        1,
 			SessionMergeGap:     Duration(120 * time.Second),
 			MinOfflineNotifySec: 120,
@@ -215,6 +215,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Collect.Interval.Value() <= 0 {
 		return fmt.Errorf("collect.interval must be > 0")
+	}
+	if c.Presence.MissThreshold < 1 {
+		return fmt.Errorf("presence.miss_threshold must be >= 1")
 	}
 	return nil
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import RefreshCountdown from '../components/RefreshCountdown'
 import { api, TimelineDevice, Session } from '../api'
 
 type RangeKey = '6h' | '24h' | '7d'
@@ -108,11 +109,14 @@ export default function Timeline() {
   const to = now
   const from = now - RANGES[rangeKey]
 
-  const { data, isLoading, error } = useQuery({
+  const query = useQuery({
     queryKey: ['timeline', rangeKey],
-    queryFn: () => api.timeline(from, to),
-    refetchInterval: rangeKey === '7d' ? 60000 : 30000,
+    queryFn: () => {
+      const end = Math.floor(Date.now() / 1000)
+      return api.timeline(end - RANGES[rangeKey], end)
+    },
   })
+  const { data, isLoading, error } = query
 
   const { ticks, stepPct } = useMemo(() => buildTicks(from, to, rangeKey), [from, to, rangeKey])
 
@@ -155,6 +159,7 @@ export default function Timeline() {
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <h2 className="text-lg font-semibold">在线区间时间轴</h2>
+        <RefreshCountdown query={query} intervalMs={rangeKey === '7d' ? 60000 : 30000} />
         <div className="flex gap-1">
           {(['6h', '24h', '7d'] as RangeKey[]).map((k) => (
             <button

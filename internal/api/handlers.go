@@ -33,6 +33,7 @@ func (a *API) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (a *API) handleDevices(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := store.DeviceFilter{
+		WatchedOnly:      q.Get("watched") == "true",
 		Q:                q.Get("q"),
 		Status:           q.Get("status"),
 		HideFixedServers: q.Get("hide_fixed_servers") == "true" || q.Get("hide_fixed_servers") == "1",
@@ -57,10 +58,26 @@ func (a *API) handlePatchDevice(w http.ResponseWriter, r *http.Request) {
 		Notes       string `json:"notes"`
 		Ignore      *bool  `json:"ignored"`
 		FixedServer *bool  `json:"fixed_server"`
+		Watched     *bool  `json:"watched"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid body")
 		return
+	}
+	device, err := a.st.GetDevice(mac)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	if device == nil {
+		writeError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	if req.Watched != nil {
+		if _, err := a.st.Exec(`UPDATE devices SET watched=? WHERE mac=?`, *req.Watched, mac); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal error")
+			return
+		}
 	}
 	if err := a.st.SetDevice(mac, req.Name, req.Notes, req.Ignore, req.FixedServer); err != nil {
 		logCtx(a.log, r).Error("patch device", "mac", mac, "err", err)

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, NotifyLog, EVENT_CN } from '../api'
+import RefreshCountdown from '../components/RefreshCountdown'
 
 function fmt(ts: number): string {
   if (!ts) return '-'
@@ -19,10 +20,11 @@ export default function Notifications() {
   const [errorsOnly, setErrorsOnly] = useState(false)
   const limit = 50
 
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ['notifications', offset, errorsOnly],
     queryFn: () => api.notifications({ limit, offset, errors: errorsOnly }),
   })
+  const { data, isLoading } = query
   const retryMut = useMutation({
     mutationFn: (id: number) => api.retryNotification(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
@@ -32,8 +34,9 @@ export default function Notifications() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className="text-lg font-semibold">通知日志</h2>
+        <RefreshCountdown query={query} />
         <label className="text-sm text-slate-300 flex items-center gap-1">
           <input type="checkbox" checked={errorsOnly} onChange={(e) => { setErrorsOnly(e.target.checked); setOffset(0) }} />
           仅失败

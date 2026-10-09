@@ -8,6 +8,7 @@ import Overview from './pages/Overview'
 import Channels from './pages/Channels'
 import Rules from './pages/Rules'
 import Notifications from './pages/Notifications'
+import DeviceCalendar from './pages/DeviceCalendar'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
@@ -23,8 +24,8 @@ function Layout({ children }: { children: ReactNode }) {
   const nav = useNavigate()
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
-        <div className="flex items-center gap-4">
+      <header className="flex flex-wrap gap-3 items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+        <div className="flex flex-wrap items-center gap-4">
           <Link to="/" className="font-semibold text-sky-400">
             lanwatch
           </Link>
@@ -36,6 +37,9 @@ function Layout({ children }: { children: ReactNode }) {
           </Link>
           <Link to="/devices" className="text-sm text-slate-300 hover:text-white">
             设备
+          </Link>
+          <Link to="/calendar" className="text-sm text-slate-300 hover:text-white">
+            设备日历
           </Link>
           <Link to="/channels" className="text-sm text-slate-300 hover:text-white">
             渠道
@@ -132,6 +136,7 @@ function Guards() {
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/calendar" element={<RequireAuth><Layout><DeviceCalendar /></Layout></RequireAuth>} />
     </Routes>
   )
 }

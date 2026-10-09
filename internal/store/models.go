@@ -5,6 +5,7 @@ import "time"
 func nowUnix() int64 { return time.Now().Unix() }
 
 type Device struct {
+	Watched         bool   `json:"watched"`
 	FixedServer     bool   `json:"fixed_server"`
 	MAC             string `json:"mac"`
 	Name            string `json:"name"`

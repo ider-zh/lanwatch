@@ -19,7 +19,7 @@ collect:
   http_timeout: 8s
 
 presence:
-  miss_threshold: 2
+  miss_threshold: 3
   hit_threshold: 1
   session_merge_gap: 120s
   min_offline_notify_sec: 120

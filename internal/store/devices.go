@@ -10,9 +10,9 @@ func (s *Store) GetDevice(mac string) (*Device, error) {
 	var d Device
 	var random int
 	err := s.QueryRow(`SELECT mac, name, hostname, vendor, current_ip, link_type, ssid, status,
-		likely_random_mac, first_seen, last_seen, notes, fixed_server FROM devices WHERE mac=?`, mac).
+		likely_random_mac, first_seen, last_seen, notes, fixed_server, watched FROM devices WHERE mac=?`, mac).
 		Scan(&d.MAC, &d.Name, &d.Hostname, &d.Vendor, &d.CurrentIP, &d.LinkType, &d.SSID,
-			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer)
+			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer, &d.Watched)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -114,6 +114,7 @@ func (s *Store) SaveIPHistory(mac, ip string, ts int64) error {
 }
 
 type DeviceFilter struct {
+	WatchedOnly      bool
 	HideFixedServers bool
 	Online           *bool
 	Status           string
@@ -122,8 +123,11 @@ type DeviceFilter struct {
 
 func (s *Store) ListDevices(f DeviceFilter) ([]Device, error) {
 	q := `SELECT mac, name, hostname, vendor, current_ip, link_type, ssid, status,
-		likely_random_mac, first_seen, last_seen, notes, fixed_server FROM devices WHERE 1=1`
+		likely_random_mac, first_seen, last_seen, notes, fixed_server, watched FROM devices WHERE 1=1`
 	var args []any
+	if f.WatchedOnly {
+		q += " AND watched=1"
+	}
 	if f.Q != "" {
 		q += " AND (mac LIKE ? OR name LIKE ? OR hostname LIKE ? OR current_ip LIKE ?)"
 		like := "%" + strings.ToLower(f.Q) + "%"
@@ -147,7 +151,7 @@ func (s *Store) ListDevices(f DeviceFilter) ([]Device, error) {
 		var d Device
 		var random int
 		if err := rows.Scan(&d.MAC, &d.Name, &d.Hostname, &d.Vendor, &d.CurrentIP, &d.LinkType, &d.SSID,
-			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer); err != nil {
+			&d.Status, &random, &d.FirstSeen, &d.LastSeen, &d.Notes, &d.FixedServer, &d.Watched); err != nil {
 			return nil, err
 		}
 		d.LikelyRandomMAC = random == 1

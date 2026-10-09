@@ -31,6 +31,7 @@ export interface User {
 }
 
 export interface Device {
+  watched: boolean
   fixed_server: boolean
   mac: string
   name: string
@@ -52,6 +53,33 @@ export interface Session {
   start: number
   end: number | null
   reason?: string
+}
+
+export interface CalendarSegment {
+  start: number
+  end: number
+  kind: 'online' | 'offline' | 'unknown' | 'merged'
+}
+
+export interface CalendarDay {
+  date: string
+  start: number
+  end: number
+  segments: CalendarSegment[]
+  online_seconds: number
+  smoothed_seconds: number
+  unknown_seconds: number
+  longest_seconds: number
+  merged_gaps: number
+}
+
+export interface DeviceCalendar {
+  device: Device
+  days: CalendarDay[]
+  now: number
+  timezone: string
+  raw_since: number
+  smooth: number
 }
 
 export interface TimelineDevice {
@@ -160,11 +188,16 @@ export const api = {
     const s = sp.toString()
     return req<{ devices: Device[] }>(`/api/devices${s ? `?${s}` : ''}`)
   },
-  patchDevice: (mac: string, body: { fixed_server: boolean }) =>
+  patchDevice: (mac: string, body: { fixed_server?: boolean; watched?: boolean; name?: string }) =>
     req<{ ok: boolean }>(`/api/devices/${encodeURIComponent(mac)}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  calendar: (mac: string, days: number, smooth: number, endDate: string) => {
+    const params = new URLSearchParams({ days: String(days), smooth: String(smooth) })
+    if (endDate) params.set('end_date', endDate)
+    return req<DeviceCalendar>(`/api/devices/${encodeURIComponent(mac)}/calendar?${params}`)
+  },
   timeline: (from: number, to: number) =>
     req<{ from: number; to: number; devices: TimelineDevice[] }>(
       `/api/timeline?from=${from}&to=${to}`,
@@ -232,4 +265,3 @@ export const api = {
       body: JSON.stringify({ channels, events }),
     }),
 }
-

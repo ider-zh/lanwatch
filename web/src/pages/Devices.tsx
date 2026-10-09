@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, Device, Channel, EVENT_TYPES, EVENT_CN } from '../api'
+import RefreshCountdown from '../components/RefreshCountdown'
 
 function fmt(ts: number): string {
   if (!ts) return '-'
@@ -32,8 +34,18 @@ export default function Devices() {
   const [q, setQ] = useState('')
   const [onlineOnly, setOnlineOnly] = useState(false)
   const [subMac, setSubMac] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Device | null>(null)
+  const [deviceName, setDeviceName] = useState('')
+  const editMut = useMutation({
+    mutationFn: ({ mac, body }: { mac: string; body: { name?: string; watched?: boolean } }) => api.patchDevice(mac, body),
+    onSuccess: () => {
+      setEditing(null)
+      qc.invalidateQueries({ queryKey: ['devices'] })
+      qc.invalidateQueries({ queryKey: ['calendar'] })
+    },
+  })
 
-  const { data, isLoading, error } = useQuery({
+  const query = useQuery({
     queryKey: ['devices', q, onlineOnly, hideFixedServers],
     queryFn: () =>
       api.devices({
@@ -43,6 +55,7 @@ export default function Devices() {
       }),
   })
   const { data: cd } = useQuery({ queryKey: ['channels'], queryFn: api.channels })
+  const { data, isLoading, error } = query
 
   const devices: Device[] = data?.devices ?? []
   const channels: Channel[] = cd?.channels ?? []
@@ -81,6 +94,7 @@ export default function Devices() {
           隐藏固定服务器
         </label>
         <span className="text-sm text-slate-500">共 {devices.length} 台</span>
+        <RefreshCountdown query={query} />
       </div>
 
       {isLoading && <div className="text-slate-400">加载中…</div>}
@@ -91,6 +105,7 @@ export default function Devices() {
           标记保存失败：{markMut.error.message}
         </div>
       )}
+      {editMut.isError && <div role="alert" className="text-rose-400 mb-3">保存失败：{editMut.error.message}</div>}
 
       <div className="overflow-x-auto rounded-lg border border-slate-800">
         <table className="w-full text-sm">
@@ -105,12 +120,13 @@ export default function Devices() {
               <th className="text-left px-3 py-2">24h 在线率</th>
               <th className="text-left px-3 py-2">标记</th>
               <th className="text-left px-3 py-2">订阅</th>
+              <th className="text-left px-3 py-2">日历关注</th>
             </tr>
           </thead>
           <tbody>
             {!isLoading && !error && devices.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-slate-500">
+                <td colSpan={10} className="px-3 py-8 text-center text-slate-500">
                   没有符合筛选条件的设备，可调整筛选或搜索条件。
                 </td>
               </tr>
@@ -125,7 +141,10 @@ export default function Devices() {
                     title={d.online ? '在线' : '离线'}
                   />
                 </td>
-                <td className="px-3 py-2 text-slate-100">{d.name || d.hostname || '-'}</td>
+                <td className="px-3 py-2 text-slate-100">
+                  <div>{d.name || d.hostname || '-'}</div>
+                  <button className="text-xs text-sky-400" onClick={() => { setEditing(d); setDeviceName(d.name || d.hostname || '') }}>命名</button>
+                </td>
                 <td className="px-3 py-2 font-mono text-slate-400">{d.mac}</td>
                 <td className="px-3 py-2 font-mono text-slate-300">{d.current_ip || '-'}</td>
                 <td className="px-3 py-2 text-slate-400">{d.vendor || '-'}</td>
@@ -151,12 +170,28 @@ export default function Devices() {
                     {d.channels?.length ? `已订 ${d.channels.length}` : '订阅'}
                   </button>
                 </td>
+                <td className="px-3 py-2">
+                  <button className={`px-2 py-1 rounded text-xs ${d.watched ? 'bg-amber-900/50 text-amber-300' : 'bg-slate-800'}`} aria-pressed={d.watched} disabled={editMut.isPending}
+                    onClick={() => editMut.mutate({ mac: d.mac, body: { watched: !d.watched } })}>
+                    {d.watched ? '★ 已关注' : '☆ 关注'}
+                  </button>
+                  {d.watched && <Link className="block text-xs text-sky-400 mt-1" to={`/calendar?mac=${encodeURIComponent(d.mac)}`}>查看日历</Link>}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
+      {editing && <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-20">
+        <form className="bg-slate-900 border border-slate-700 rounded-lg p-5 w-full max-w-sm" onSubmit={event => { event.preventDefault(); if (deviceName.trim()) editMut.mutate({ mac: editing.mac, body: { name: deviceName.trim() } }) }}>
+          <h3 className="font-semibold mb-2">设备名称</h3>
+          <p className="text-xs text-slate-400 mb-3">{editing.mac}</p>
+          <input aria-label="设备名称" autoFocus maxLength={100} required className="w-full bg-slate-800 rounded p-2" value={deviceName} onChange={event => setDeviceName(event.target.value)} />
+          <div className="flex justify-end gap-3 mt-4"><button type="button" onClick={() => setEditing(null)}>取消</button><button className="text-sky-400" disabled={editMut.isPending || !deviceName.trim()}>保存</button></div>
+          {editMut.isError && <p role="alert" className="text-rose-400 mt-2">{editMut.error.message}</p>}
+        </form>
+      </div>}
       {subMac && (
         <SubscriptionModal
           mac={subMac}
@@ -264,4 +299,3 @@ function SubscriptionModal({
     </div>
   )
 }
-

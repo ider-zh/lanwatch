@@ -54,6 +54,7 @@ func (a *API) Handler() http.Handler {
 		protected.Post("/api/auth/logout", a.handleLogout)
 		protected.Get("/api/devices", a.handleDevices)
 		protected.Get("/api/devices/{mac}/sessions", a.handleDeviceSessions)
+		protected.Get("/api/devices/{mac}/calendar", a.handleDeviceCalendar)
 		protected.Patch("/api/devices/{mac}", a.handlePatchDevice)
 		protected.Get("/api/timeline", a.handleTimeline)
 		protected.Get("/api/sources", a.handleSources)

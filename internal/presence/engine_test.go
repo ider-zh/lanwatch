@@ -88,6 +88,35 @@ func TestOnlineThenOffline(t *testing.T) {
 	}
 }
 
+func TestConfigurableMissThreshold(t *testing.T) {
+	for _, threshold := range []int{1, 3, 5} {
+		engine, cleanup := newTestEngine(t, 99)
+		engine.cfg.MissThreshold = threshold
+		const mac = "AA-BB-CC-DD-EE-FF"
+		engine.processDevice(mac, &mergedObs{present: true}, 1000)
+		collect(engine.Events())
+		for miss := 1; miss < threshold; miss++ {
+			engine.registerMiss(mac, 1000+int64(miss)*60)
+		}
+		if events := collect(engine.Events()); len(events) != 0 {
+			t.Fatalf("threshold %d: premature events: %+v", threshold, events)
+		}
+		engine.registerHit(mac, 2000)
+		for miss := 1; miss <= threshold; miss++ {
+			engine.registerMiss(mac, 2000+int64(miss)*60)
+			events := collect(engine.Events())
+			if hasType(events, TypeOffline) != (miss == threshold) {
+				t.Fatalf("threshold %d, miss %d: unexpected events: %+v", threshold, miss, events)
+			}
+		}
+		engine.registerMiss(mac, 3000)
+		if hasType(collect(engine.Events()), TypeOffline) {
+			t.Fatalf("threshold %d: repeated offline event", threshold)
+		}
+		cleanup()
+	}
+}
+
 func TestOfflineTimingUsesObservations(t *testing.T) {
 	engine, cleanup := newTestEngine(t, 99)
 	defer cleanup()
