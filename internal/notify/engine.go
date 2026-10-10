@@ -252,7 +252,6 @@ func (e *Engine) expand(ev presence.Event) []candidate {
 		}
 		cands = append(cands, candidate{
 			channelID:   sub.ChannelID,
-			cooldownKey: fmt.Sprintf("sub:%s:%d:%s", ev.MAC, sub.ChannelID, ev.Type),
 			cooldownSec: e.cfg.CooldownSec,
 			ruleName:    "设备订阅",
 		})
@@ -277,14 +276,24 @@ func (e *Engine) expand(ev presence.Event) []candidate {
 			rid := r.ID
 			cands = append(cands, candidate{
 				channelID:   cid,
-				cooldownKey: fmt.Sprintf("rule:%d:%s:%s", rid, ev.MAC, ev.Type),
 				cooldownSec: cd,
 				ruleID:      &rid,
 				ruleName:    r.Name,
 			})
 		}
 	}
-	return cands
+	unique := make([]candidate, 0, len(cands))
+	byChannel := make(map[int64]int, len(cands))
+	for _, cand := range cands {
+		if index, exists := byChannel[cand.channelID]; exists {
+			unique[index].cooldownSec = max(unique[index].cooldownSec, cand.cooldownSec)
+			continue
+		}
+		cand.cooldownKey = fmt.Sprintf("channel:%d:%s:%s", cand.channelID, ev.MAC, ev.Type)
+		byChannel[cand.channelID] = len(unique)
+		unique = append(unique, cand)
+	}
+	return unique
 }
 
 func scopeMatch(r store.NotifyRule, mac, eventType string) bool {
